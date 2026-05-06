@@ -6,8 +6,12 @@ plugins {
     alias(libs.plugins.firebase.crashlytics)
 }
 
-// Tên app gốc — chỉ cần đổi ở đây
+// Tên app gốc — chỉ cần đổi ở đây, xoá app_name trong strings.xml
 val baseAppName = "Template"
+
+val versionMajor = 1
+val versionMinor = 0
+val versionPatch = 0
 
 android {
     namespace = "com.one.tabb"
@@ -21,8 +25,8 @@ android {
         applicationId = "com.one.tabb"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = (versionMajor * 10000) + (versionMinor * 100) + versionPatch
+        versionName = "$versionMajor.$versionMinor.$versionPatch"
 
     }
 
@@ -37,10 +41,10 @@ android {
     }
 
     // gồm có 4 flavor: 
-    // devFree | 1.0-dev
-    // devPaid | 1.0-dev-paid
-    // prodFree | 1.0
-    // prodPaid | 1.0-paid
+    // devFree | 1.0.0-dev
+    // devPaid | 1.0.0-dev-paid
+    // prodFree | 1.0.0
+    // prodPaid | 1.0.0-paid
     flavorDimensions += listOf("env", "tier")
     productFlavors {
         create("dev") {
