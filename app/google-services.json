@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "531115704405",
+    "project_id": "tabb-template",
+    "storage_bucket": "tabb-template.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:531115704405:android:609d8eb46173535f6654dc",
+        "android_client_info": {
+          "package_name": "com.one.tabb"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB6RSpaHTOX4SOfiqqbERskMmnX8H-cWDs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:531115704405:android:744a62b59492d9066654dc",
+        "android_client_info": {
+          "package_name": "com.one.tabb.dev"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB6RSpaHTOX4SOfiqqbERskMmnX8H-cWDs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
