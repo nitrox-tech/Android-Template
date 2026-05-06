@@ -1,0 +1,197 @@
+name: Build AAB
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to build from'
+        required: true
+        default: 'main'
+        type: string
+      build_type:
+        description: 'Build type'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - release
+          - debug
+      expected_sha1:
+        description: 'Expected SHA1 fingerprint of keystore (optional – for first-time verification)'
+        required: false
+        type: string
+
+jobs:
+  build:
+    name: Build ${{ github.event.inputs.build_type }} AAB
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch }}
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Extract version info
+        id: version
+        run: |
+          APP_NAME="MultiTimer"
+          VERSION_NAME=$(grep 'versionName' composeApp/build.gradle.kts | grep -oP '(?<=")[^"]+(?=")' | head -1)
+          VERSION_CODE=$(grep 'versionCode' composeApp/build.gradle.kts | grep -oP '\d+' | head -1)
+          BUILD_TYPE="${{ github.event.inputs.build_type }}"
+          FILE_NAME="${APP_NAME}-v${VERSION_NAME} (${VERSION_CODE})-${BUILD_TYPE}"
+
+          echo "app_name=$APP_NAME"           >> $GITHUB_OUTPUT
+          echo "version_name=$VERSION_NAME"   >> $GITHUB_OUTPUT
+          echo "version_code=$VERSION_CODE"   >> $GITHUB_OUTPUT
+          echo "file_name=$FILE_NAME"         >> $GITHUB_OUTPUT
+
+          echo "📦 App       : $APP_NAME"
+          echo "🔢 Version   : v${VERSION_NAME} (${VERSION_CODE})"
+          echo "🏷️  Build type: ${BUILD_TYPE}"
+          echo "📄 File name : ${FILE_NAME}"
+
+      - name: Decode Keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > ${{ github.workspace }}/release.keystore
+
+      - name: Verify SHA1 Fingerprint
+        id: sha1_check
+        run: |
+          EXPECTED="${{ github.event.inputs.expected_sha1 }}"
+
+          ACTUAL=$(keytool -list -v \
+            -keystore "${{ github.workspace }}/release.keystore" \
+            -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
+            -alias "${{ secrets.ANDROID_KEY_ALIAS }}" \
+            2>/dev/null | grep "SHA1:" | awk '{print $2}')
+
+          echo "actual_sha1=$ACTUAL" >> $GITHUB_OUTPUT
+
+          if [ -z "$EXPECTED" ]; then
+            # ── Case 3: Skipped ──────────────────────────────────────────────
+            echo "sha1_status=skipped" >> $GITHUB_OUTPUT
+            echo "::warning::⚠️ SHA1 verification skipped – no fingerprint provided."
+
+            {
+              echo "## ⚠️ SHA1 Verification: SKIPPED"
+              echo ""
+              echo "Không có SHA1 fingerprint được nhập. Verification bị bỏ qua."
+              echo ""
+              echo "| | |"
+              echo "|---|---|"
+              echo "| Keystore SHA1 thực tế | \`$ACTUAL\` |"
+              echo "| Trạng thái | ⚠️ Chưa xác minh |"
+              echo ""
+              echo "> 💡 **Tip:** Nhập SHA1 ở lần build đầu tiên để đảm bảo đúng keystore."
+            } >> $GITHUB_STEP_SUMMARY
+
+          else
+            # Normalize (uppercase, strip colons)
+            EXP_CLEAN=$(echo "$EXPECTED" | tr '[:lower:]' '[:upper:]' | tr -d ':' | tr -d ' ')
+            ACT_CLEAN=$(echo "$ACTUAL"   | tr '[:lower:]' '[:upper:]' | tr -d ':' | tr -d ' ')
+
+            if [ "$EXP_CLEAN" = "$ACT_CLEAN" ]; then
+              # ── Case 2: Passed ────────────────────────────────────────────
+              echo "sha1_status=passed" >> $GITHUB_OUTPUT
+              echo "✅ SHA1 match: $ACTUAL"
+
+              {
+                echo "## ✅ SHA1 Verification: PASSED"
+                echo ""
+                echo "Keystore fingerprint khớp với SHA1 đã nhập."
+                echo ""
+                echo "| | |"
+                echo "|---|---|"
+                echo "| SHA1 mong đợi | \`$EXPECTED\` |"
+                echo "| SHA1 thực tế  | \`$ACTUAL\`   |"
+                echo "| Trạng thái    | ✅ Khớp       |"
+              } >> $GITHUB_STEP_SUMMARY
+
+            else
+              # ── Case 1: Failed ────────────────────────────────────────────
+              echo "sha1_status=failed" >> $GITHUB_OUTPUT
+              echo "::error::❌ SHA1 mismatch! Expected: $EXPECTED | Actual: $ACTUAL"
+
+              {
+                echo "## ❌ SHA1 Verification: FAILED"
+                echo ""
+                echo "**Fingerprint của keystore KHÔNG khớp với SHA1 đã nhập.**"
+                echo "Build đã bị dừng để tránh ký sai keystore."
+                echo ""
+                echo "| | |"
+                echo "|---|---|"
+                echo "| SHA1 mong đợi | \`$EXPECTED\` |"
+                echo "| SHA1 thực tế  | \`$ACTUAL\`   |"
+                echo "| Trạng thái    | ❌ Không khớp |"
+                echo ""
+                echo "> ❗ **Kiểm tra lại** secret \`ANDROID_KEYSTORE_BASE64\` xem có đúng keystore không."
+              } >> $GITHUB_STEP_SUMMARY
+
+              exit 1
+            fi
+          fi
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build AAB
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          BUILD_TYPE="${{ github.event.inputs.build_type }}"
+          if [ "$BUILD_TYPE" = "release" ]; then
+            ./gradlew :composeApp:bundleRelease --no-daemon
+          else
+            ./gradlew :composeApp:bundleDebug --no-daemon
+          fi
+
+      - name: Rename and package AAB
+        id: package
+        run: |
+          FILE_NAME="${{ steps.version.outputs.file_name }}"
+          BUILD_TYPE="${{ github.event.inputs.build_type }}"
+
+          # Find the AAB (robust: doesn't depend on exact module name)
+          AAB_SOURCE=$(find composeApp/build/outputs/bundle/${BUILD_TYPE} -name "*.aab" | head -1)
+          echo "Found AAB: $AAB_SOURCE"
+
+          cp "$AAB_SOURCE" "${FILE_NAME}.aab"
+          zip "${FILE_NAME}.zip" "${FILE_NAME}.aab"
+
+          echo "zip_name=${FILE_NAME}.zip" >> $GITHUB_OUTPUT
+          echo "zip_path=${FILE_NAME}.zip" >> $GITHUB_OUTPUT
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.file_name }}
+          path: ${{ steps.package.outputs.zip_path }}
+          retention-days: 14
+
+      - name: Build Summary
+        run: |
+          SHA1_STATUS="${{ steps.sha1_check.outputs.sha1_status }}"
+          FILE_NAME="${{ steps.version.outputs.file_name }}"
+
+          {
+            echo "---"
+            echo "## 📦 Build Complete"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| App         | ${{ steps.version.outputs.app_name }}                              |"
+            echo "| Version     | v${{ steps.version.outputs.version_name }} (${{ steps.version.outputs.version_code }}) |"
+            echo "| Build type  | \`${{ github.event.inputs.build_type }}\`                         |"
+            echo "| Branch      | \`${{ github.event.inputs.branch }}\`                             |"
+            echo "| Output file | \`${FILE_NAME}.zip\`                                              |"
+          } >> $GITHUB_STEP_SUMMARY
