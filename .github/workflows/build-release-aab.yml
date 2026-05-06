@@ -136,16 +136,19 @@ jobs:
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          ./gradlew :app:bundleRelease --no-daemon
+          ./gradlew :app:bundleProdFreeRelease --no-daemon
 
       - name: Rename and package AAB
         id: package
         run: |
           FILE_NAME="${{ steps.version.outputs.file_name }}"
-          BUILD_TYPE="release"
+          VARIANT_DIR="prodFreeRelease"
 
-          # Find the AAB (robust: doesn't depend on exact module name)
-          AAB_SOURCE=$(find app/build/outputs/bundle/${BUILD_TYPE} -name "*.aab" | head -1)
+          AAB_SOURCE=$(find "app/build/outputs/bundle/${VARIANT_DIR}" -name "*.aab" | head -1)
+          if [ -z "$AAB_SOURCE" ]; then
+            echo "::error::No AAB found under app/build/outputs/bundle/${VARIANT_DIR}"
+            exit 1
+          fi
           echo "Found AAB: $AAB_SOURCE"
 
           cp "$AAB_SOURCE" "${FILE_NAME}.aab"
