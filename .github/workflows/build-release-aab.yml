@@ -3,19 +3,6 @@ name: Build AAB
 on:
   workflow_dispatch:
     inputs:
-      branch:
-        description: 'Branch to build from'
-        required: true
-        default: 'main'
-        type: string
-      build_type:
-        description: 'Build type'
-        required: true
-        default: 'release'
-        type: choice
-        options:
-          - release
-          - debug
       expected_sha1:
         description: 'Expected SHA1 fingerprint of keystore (optional – for first-time verification)'
         required: false
@@ -23,14 +10,12 @@ on:
 
 jobs:
   build:
-    name: Build ${{ github.event.inputs.build_type }} AAB
+    name: Build release AAB
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.branch }}
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -47,7 +32,7 @@ jobs:
           VERSION_PATCH=$(grep 'val versionPatch' app/build.gradle.kts | grep -oP '\d+' | head -1)
           VERSION_NAME="${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}"
           VERSION_CODE=$((VERSION_MAJOR * 10000 + VERSION_MINOR * 100 + VERSION_PATCH))
-          BUILD_TYPE="${{ github.event.inputs.build_type }}"
+          BUILD_TYPE="release"
           FILE_NAME="${APP_NAME}-v${VERSION_NAME} (${VERSION_CODE})-${BUILD_TYPE}"
 
           echo "app_name=$APP_NAME"           >> $GITHUB_OUTPUT
@@ -151,18 +136,13 @@ jobs:
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          BUILD_TYPE="${{ github.event.inputs.build_type }}"
-          if [ "$BUILD_TYPE" = "release" ]; then
-            ./gradlew :app:bundleRelease --no-daemon
-          else
-            ./gradlew :app:bundleDebug --no-daemon
-          fi
+          ./gradlew :app:bundleRelease --no-daemon
 
       - name: Rename and package AAB
         id: package
         run: |
           FILE_NAME="${{ steps.version.outputs.file_name }}"
-          BUILD_TYPE="${{ github.event.inputs.build_type }}"
+          BUILD_TYPE="release"
 
           # Find the AAB (robust: doesn't depend on exact module name)
           AAB_SOURCE=$(find app/build/outputs/bundle/${BUILD_TYPE} -name "*.aab" | head -1)
@@ -194,7 +174,7 @@ jobs:
             echo "|---|---|"
             echo "| App         | ${{ steps.version.outputs.app_name }}                              |"
             echo "| Version     | v${{ steps.version.outputs.version_name }} (${{ steps.version.outputs.version_code }}) |"
-            echo "| Build type  | \`${{ github.event.inputs.build_type }}\`                         |"
-            echo "| Branch      | \`${{ github.event.inputs.branch }}\`                             |"
+            echo "| Build type  | \`release\`                         |"
+            echo "| Branch      | \`${{ github.ref_name }}\`                             |"
             echo "| Output file | \`${FILE_NAME}.zip\`                                              |"
           } >> $GITHUB_STEP_SUMMARY
