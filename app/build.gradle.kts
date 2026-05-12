@@ -13,6 +13,11 @@ val versionMajor = 1
 val versionMinor = 0
 val versionPatch = 0
 
+// CI (GitHub Actions) sets these; release AAB must be signed for Play Store upload.
+val releaseKeystorePath = System.getenv("KEYSTORE_PATH")
+val hasReleaseKeystore =
+    !releaseKeystorePath.isNullOrBlank() && file(releaseKeystorePath!!).exists()
+
 android {
     namespace = "com.one.tabb"
     compileSdk {
@@ -30,8 +35,28 @@ android {
 
     }
 
+
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = file(releaseKeystorePath!!)
+                storePassword =
+                    System.getenv("KEYSTORE_PASSWORD")
+                        ?: error("KEYSTORE_PASSWORD is required when KEYSTORE_PATH is set")
+                keyAlias =
+                    System.getenv("KEY_ALIAS") ?: error("KEY_ALIAS is required when KEYSTORE_PATH is set")
+                keyPassword =
+                    System.getenv("KEY_PASSWORD") ?: System.getenv("KEYSTORE_PASSWORD")
+                            ?: error("KEY_PASSWORD or KEYSTORE_PASSWORD is required when KEYSTORE_PATH is set")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (hasReleaseKeystore) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
