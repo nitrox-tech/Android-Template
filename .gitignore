@@ -89,7 +89,5 @@ lint/outputs/
 lint/tmp/
 
 # Ignore custom scripts
-*.ps1
-*.py
 /*.ps1
 /*.py
