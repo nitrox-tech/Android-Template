@@ -27,22 +27,28 @@ jobs:
         id: version
         run: |
           APP_NAME=$(grep 'val baseAppName' app/build.gradle.kts | grep -oP '(?<=")[^"]+(?=")' | head -1)
+          PROJECT_ID=$(grep 'val projectId' app/build.gradle.kts | grep -oP '(?<=")[^"]+(?=")' | head -1)
           VERSION_MAJOR=$(grep 'val versionMajor' app/build.gradle.kts | grep -oP '\d+' | head -1)
           VERSION_MINOR=$(grep 'val versionMinor' app/build.gradle.kts | grep -oP '\d+' | head -1)
           VERSION_PATCH=$(grep 'val versionPatch' app/build.gradle.kts | grep -oP '\d+' | head -1)
           VERSION_BUILD=$(grep 'val versionBuild' app/build.gradle.kts | grep -oP '\d+' | head -1)
           VERSION_NAME="${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}"
           VERSION_CODE=$((VERSION_MAJOR * 1000000 + VERSION_MINOR * 10000 + VERSION_PATCH * 100 + VERSION_BUILD))
+          FLAVOR_NAME="prodFree"
           BUILD_TYPE="release"
-          FILE_NAME="${APP_NAME}-v${VERSION_NAME} (${VERSION_CODE})-${BUILD_TYPE}"
+          FILE_NAME="${PROJECT_ID}-v${VERSION_NAME}(${VERSION_CODE})-${FLAVOR_NAME}-${BUILD_TYPE}"
 
           echo "app_name=$APP_NAME"           >> $GITHUB_OUTPUT
+          echo "project_id=$PROJECT_ID"       >> $GITHUB_OUTPUT
           echo "version_name=$VERSION_NAME"   >> $GITHUB_OUTPUT
           echo "version_code=$VERSION_CODE"   >> $GITHUB_OUTPUT
+          echo "flavor_name=$FLAVOR_NAME"     >> $GITHUB_OUTPUT
           echo "file_name=$FILE_NAME"         >> $GITHUB_OUTPUT
 
           echo "📦 App       : $APP_NAME"
+          echo "🧩 Project   : $PROJECT_ID"
           echo "🔢 Version   : v${VERSION_NAME} (${VERSION_CODE})"
+          echo "🧪 Flavor    : ${FLAVOR_NAME}"
           echo "🏷️  Build type: ${BUILD_TYPE}"
           echo "📄 File name : ${FILE_NAME}"
 
@@ -145,7 +151,7 @@ jobs:
           FILE_NAME="${{ steps.version.outputs.file_name }}"
           VARIANT_DIR="prodFreeRelease"
           PACKAGE_DIR="release-package"
-          PROTECTED_AAB_NAME="${{ steps.version.outputs.app_name }}-reschiper.aab"
+          PROTECTED_AAB_NAME="${{ steps.version.outputs.project_id }}-reschiper.aab"
           PROTECTED_AAB_NAME="${PROTECTED_AAB_NAME// /-}"
           AAB_SOURCE="app/build/outputs/bundle/${VARIANT_DIR}/${PROTECTED_AAB_NAME}"
           R8_MAPPING="app/build/outputs/mapping/${VARIANT_DIR}/mapping.txt"
@@ -192,7 +198,9 @@ jobs:
             echo "| | |"
             echo "|---|---|"
             echo "| App         | ${{ steps.version.outputs.app_name }}                              |"
+            echo "| Project     | ${{ steps.version.outputs.project_id }}                              |"
             echo "| Version     | v${{ steps.version.outputs.version_name }} (${{ steps.version.outputs.version_code }}) |"
+            echo "| Flavor      | \`${{ steps.version.outputs.flavor_name }}\`                         |"
             echo "| Build type  | \`release\`                         |"
             echo "| Branch      | \`${{ github.ref_name }}\`                             |"
             echo "| Output file | \`${FILE_NAME}.zip\`                                              |"

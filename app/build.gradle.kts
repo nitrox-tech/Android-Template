@@ -12,7 +12,9 @@ plugins {
 
 // Tên app gốc — chỉ cần đổi ở đây, xoá app_name trong strings.xml
 val baseAppName = "Template"
-val protectedAabName = "${baseAppName.replace(" ", "-")}-reschiper.aab"
+// mã dự án
+val projectId = "PI01"
+val protectedAabName = "${projectId.replace(" ", "-")}-reschiper.aab"
 
 apply(plugin = "stringfog")
 apply(plugin = "io.github.goldfish07.reschiper")
@@ -171,7 +173,7 @@ androidComponents {
                 val flavor = variant.flavorName ?: ""
                 val buildType = variant.buildType ?: ""
                 output.outputFileName.set(
-                    "${baseAppName}-v${output.versionName.get()}" +
+                    "${projectId}-v${output.versionName.get()}" +
                     "(${output.versionCode.get()})-${flavor}-${buildType}.apk"
                 )
             }
