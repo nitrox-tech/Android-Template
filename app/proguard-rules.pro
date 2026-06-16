@@ -1,21 +1,26 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Preserve useful Crashlytics stack traces while hiding original source names.
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Keep annotation and generic signature metadata used by Android/Firebase SDKs.
+-keepattributes Signature,*Annotation*
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Keep native method names because JNI resolves them by name.
+-keepclasseswithmembernames,includedescriptorclasses class * {
+    native <methods>;
+}
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Keep WebView JavaScript bridge methods if one is added later.
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+
+# Firebase discovers component registrars through manifest metadata and reflection.
+-keepclassmembers class * implements com.google.firebase.components.ComponentRegistrar {
+    public <init>();
+}
+
+# Room creates generated database implementations through reflection.
+-keepclassmembers class * extends androidx.room.RoomDatabase {
+    public <init>();
+}

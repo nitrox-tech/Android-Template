@@ -30,8 +30,9 @@ jobs:
           VERSION_MAJOR=$(grep 'val versionMajor' app/build.gradle.kts | grep -oP '\d+' | head -1)
           VERSION_MINOR=$(grep 'val versionMinor' app/build.gradle.kts | grep -oP '\d+' | head -1)
           VERSION_PATCH=$(grep 'val versionPatch' app/build.gradle.kts | grep -oP '\d+' | head -1)
+          VERSION_BUILD=$(grep 'val versionBuild' app/build.gradle.kts | grep -oP '\d+' | head -1)
           VERSION_NAME="${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}"
-          VERSION_CODE=$((VERSION_MAJOR * 10000 + VERSION_MINOR * 100 + VERSION_PATCH))
+          VERSION_CODE=$((VERSION_MAJOR * 1000000 + VERSION_MINOR * 10000 + VERSION_PATCH * 100 + VERSION_BUILD))
           BUILD_TYPE="release"
           FILE_NAME="${APP_NAME}-v${VERSION_NAME} (${VERSION_CODE})-${BUILD_TYPE}"
 
@@ -129,30 +130,45 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build AAB
+      - name: Build protected AAB
         env:
           KEYSTORE_PATH: ${{ github.workspace }}/release.keystore
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          ./gradlew :app:bundleProdFreeRelease --no-daemon
+          ./gradlew :app:resChiperProdFreeRelease --no-daemon
 
-      - name: Rename and package AAB
+      - name: Package AAB and mappings
         id: package
         run: |
           FILE_NAME="${{ steps.version.outputs.file_name }}"
           VARIANT_DIR="prodFreeRelease"
+          PACKAGE_DIR="release-package"
+          PROTECTED_AAB_NAME="${{ steps.version.outputs.app_name }}-reschiper.aab"
+          PROTECTED_AAB_NAME="${PROTECTED_AAB_NAME// /-}"
+          AAB_SOURCE="app/build/outputs/bundle/${VARIANT_DIR}/${PROTECTED_AAB_NAME}"
+          R8_MAPPING="app/build/outputs/mapping/${VARIANT_DIR}/mapping.txt"
+          RESOURCE_MAPPING="app/build/outputs/bundle/${VARIANT_DIR}/resources-mapping.txt"
 
-          AAB_SOURCE=$(find "app/build/outputs/bundle/${VARIANT_DIR}" -name "*.aab" | head -1)
-          if [ -z "$AAB_SOURCE" ]; then
-            echo "::error::No AAB found under app/build/outputs/bundle/${VARIANT_DIR}"
+          if [ ! -f "$AAB_SOURCE" ]; then
+            echo "::error::Protected ResChiper AAB not found: $AAB_SOURCE"
             exit 1
           fi
-          echo "Found AAB: $AAB_SOURCE"
+          if [ ! -f "$R8_MAPPING" ]; then
+            echo "::error::R8 mapping not found: $R8_MAPPING"
+            exit 1
+          fi
+          if [ ! -f "$RESOURCE_MAPPING" ]; then
+            echo "::error::ResChiper resource mapping not found: $RESOURCE_MAPPING"
+            exit 1
+          fi
 
-          cp "$AAB_SOURCE" "${FILE_NAME}.aab"
-          zip "${FILE_NAME}.zip" "${FILE_NAME}.aab"
+          mkdir -p "$PACKAGE_DIR/mapping"
+          cp "$AAB_SOURCE" "$PACKAGE_DIR/${FILE_NAME}.aab"
+          cp "$R8_MAPPING" "$PACKAGE_DIR/mapping/r8-mapping.txt"
+          cp "$RESOURCE_MAPPING" "$PACKAGE_DIR/mapping/resources-mapping.txt"
+          zip -r "${FILE_NAME}.zip" "$PACKAGE_DIR"
 
           echo "zip_name=${FILE_NAME}.zip" >> $GITHUB_OUTPUT
           echo "zip_path=${FILE_NAME}.zip" >> $GITHUB_OUTPUT
@@ -180,4 +196,6 @@ jobs:
             echo "| Build type  | \`release\`                         |"
             echo "| Branch      | \`${{ github.ref_name }}\`                             |"
             echo "| Output file | \`${FILE_NAME}.zip\`                                              |"
+            echo "| Protection  | R8 + StringFog + ResChiper                                |"
+            echo "| Mappings    | R8 and ResChiper mappings included in ZIP                  |"
           } >> $GITHUB_STEP_SUMMARY
