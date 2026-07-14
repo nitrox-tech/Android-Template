@@ -60,7 +60,13 @@ configure<io.github.goldfish07.reschiper.plugin.Extension> {
         "*.R.dimen.tt_*",
         "*.R.integer.tt_*",
         "*.R.style.tt_*",
-        "*.R.attr.tt_*"
+        "*.R.attr.tt_*",
+        "*.R.*.tt_*",
+        "res/*/tt_*",
+        "*.R.*.pangle_*",
+        "res/*/pangle_*",
+        "*.R.*.bytedance_*",
+        "res/*/bytedance_*"
     )
     mergeDuplicateResources = false
     enableFileFiltering = false
