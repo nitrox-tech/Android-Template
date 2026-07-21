@@ -169,6 +169,12 @@ android {
         compose = true // [Compose] Xoá block buildFeatures này nếu dùng XML
         resValues = true
     }
+
+    bundle {
+        language {
+            enableSplit = false
+        }
+    }
 }
 
 // Đặt tên file APK output: AppName-v1.0(1)-devFree-debug.apk
