@@ -76,7 +76,7 @@ configure<io.github.goldfish07.reschiper.plugin.Extension> {
 val versionMajor = 1
 val versionMinor = 1
 val versionPatch = 0
-val versionBuild = 1
+val versionBuild = 0
 
 // CI (GitHub Actions) sets these; release AAB must be signed for Play Store upload.
 val releaseKeystorePath = System.getenv("KEYSTORE_PATH")
