@@ -8,6 +8,9 @@ on:
         required: false
         type: string
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build release AAB
@@ -16,6 +19,50 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bump versionBuild
+        id: bump_version
+        run: |
+          VERSION_MAJOR=$(grep 'val versionMajor' app/build.gradle.kts | grep -oP '\d+' | head -1)
+          VERSION_MINOR=$(grep 'val versionMinor' app/build.gradle.kts | grep -oP '\d+' | head -1)
+          VERSION_PATCH=$(grep 'val versionPatch' app/build.gradle.kts | grep -oP '\d+' | head -1)
+          CURRENT_VERSION_BUILD=$(grep 'val versionBuild' app/build.gradle.kts | grep -oP '\d+' | head -1)
+          VERSION_NAME="${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}"
+
+          LATEST_TAG=$(git tag --list 'v*-build-*' --sort=-creatordate \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+-build-[0-9]+$' \
+            | head -1 || true)
+
+          if [ -z "$LATEST_TAG" ]; then
+            NEW_VERSION_BUILD=$((CURRENT_VERSION_BUILD + 1))
+            echo "No valid version tag found. Bumping versionBuild from file: ${CURRENT_VERSION_BUILD} -> ${NEW_VERSION_BUILD}"
+          else
+            TAG_VERSION=$(echo "$LATEST_TAG" | sed -E 's/^v([0-9]+\.[0-9]+\.[0-9]+)-build-[0-9]+$/\1/')
+            TAG_VERSION_BUILD=$(echo "$LATEST_TAG" | sed -E 's/^v[0-9]+\.[0-9]+\.[0-9]+-build-([0-9]+)$/\1/')
+
+            if [ "$TAG_VERSION" = "$VERSION_NAME" ]; then
+              NEW_VERSION_BUILD=$((TAG_VERSION_BUILD + 1))
+              echo "Latest valid tag ${LATEST_TAG} matches ${VERSION_NAME}. Bumping versionBuild to ${NEW_VERSION_BUILD}"
+            else
+              NEW_VERSION_BUILD=0
+              echo "Latest valid tag ${LATEST_TAG} is for ${TAG_VERSION}. Current version is ${VERSION_NAME}; resetting versionBuild to 0"
+            fi
+          fi
+
+          NEW_TAG="v${VERSION_NAME}-build-${NEW_VERSION_BUILD}"
+
+          if git rev-parse -q --verify "refs/tags/${NEW_TAG}" >/dev/null; then
+            echo "::error::Tag already exists: ${NEW_TAG}"
+            exit 1
+          fi
+
+          sed -i -E "s/^val versionBuild = [0-9]+$/val versionBuild = ${NEW_VERSION_BUILD}/" app/build.gradle.kts
+
+          echo "version_build=${NEW_VERSION_BUILD}" >> $GITHUB_OUTPUT
+          echo "tag_name=${NEW_TAG}" >> $GITHUB_OUTPUT
+          echo "Version tag to create: ${NEW_TAG}"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -42,6 +89,7 @@ jobs:
           echo "project_id=$PROJECT_ID"       >> $GITHUB_OUTPUT
           echo "version_name=$VERSION_NAME"   >> $GITHUB_OUTPUT
           echo "version_code=$VERSION_CODE"   >> $GITHUB_OUTPUT
+          echo "version_build=$VERSION_BUILD" >> $GITHUB_OUTPUT
           echo "flavor_name=$FLAVOR_NAME"     >> $GITHUB_OUTPUT
           echo "file_name=$FILE_NAME"         >> $GITHUB_OUTPUT
 
@@ -185,6 +233,22 @@ jobs:
           name: ${{ steps.version.outputs.file_name }}
           path: ${{ steps.package.outputs.zip_path }}
           retention-days: 14
+
+      - name: Commit versionBuild and create tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if ! git diff --quiet -- app/build.gradle.kts; then
+            git add app/build.gradle.kts
+            git commit -m "ci: bump version to ${{ steps.version.outputs.version_name }} (${{ steps.version.outputs.version_build }}) [skip ci]"
+          else
+            echo "No versionBuild change to commit."
+          fi
+
+          git tag "${{ steps.bump_version.outputs.tag_name }}"
+          git push origin "HEAD:${{ github.ref_name }}"
+          git push origin "${{ steps.bump_version.outputs.tag_name }}"
 
       - name: Build Summary
         run: |
